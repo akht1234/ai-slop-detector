@@ -60,3 +60,8 @@ models/*.safetensors
 
 # Logs
 *.log
+
+# Kaggle credentials
+kaggle.json
+.kaggle/
+.config/kaggle/

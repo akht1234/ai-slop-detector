@@ -1,0 +1,177 @@
+{
+  "audit_version": 1,
+  "source": "huggingface:liamdugan/raid/train",
+  "configuration": {
+    "max_rows": 50000,
+    "split": "train",
+    "seed": 42
+  },
+  "runtime": {
+    "python_version": "3.12.13 (main, Mar  4 2026, 09:23:07) [GCC 11.4.0]",
+    "platform": "Linux-6.12.90+-x86_64-with-glibc2.35",
+    "working_directory": "/kaggle/working",
+    "kaggle_environment": true,
+    "torch_version": "2.10.0+cu128",
+    "cuda_available": true,
+    "cuda_device_count": 1,
+    "cuda_devices": [
+      "Tesla P100-PCIE-16GB"
+    ]
+  },
+  "data": {
+    "rows_audited": 50000,
+    "labeled_rows": 50000,
+    "observed_fields": [
+      "adv_source_id",
+      "attack",
+      "decoding",
+      "domain",
+      "generation",
+      "id",
+      "model",
+      "prompt",
+      "repetition_penalty",
+      "source_id",
+      "title"
+    ],
+    "missing_field_counts": {
+      "decoding": 4088,
+      "repetition_penalty": 4088
+    },
+    "label_counts": {
+      "1": 45912,
+      "0": 4088
+    },
+    "model_counts": {
+      "llama-chat": 8010,
+      "human": 4088,
+      "gpt2": 7590,
+      "mpt": 7800,
+      "mistral": 7488,
+      "mpt-chat": 7721,
+      "mistral-chat": 7303
+    },
+    "domain_counts": {
+      "abstracts": 50000
+    },
+    "attack_counts": {
+      "none": 22725,
+      "whitespace": 20731,
+      "upper_lower": 6544
+    },
+    "decoding_counts": {
+      "sampling": 22919,
+      "greedy": 22993,
+      "missing": 4088
+    },
+    "repetition_penalty_counts": {
+      "yes": 22919,
+      "no": 22993,
+      "missing": 4088
+    },
+    "unique_record_ids": 50000,
+    "unique_source_ids": 1766,
+    "unique_adv_source_ids": 22925,
+    "duplicate_record_ids": 0,
+    "duplicate_texts": 114,
+    "empty_text_rows": 0,
+    "text_character_lengths": {
+      "count": 50000,
+      "min": 5,
+      "max": 3764,
+      "mean": 1522.83
+    },
+    "samples": [
+      {
+        "id": "7db2f15a-07c9-40f1-a35c-591e3fb56cde",
+        "label": 1,
+        "model": "llama-chat",
+        "domain": "abstracts",
+        "attack": "none",
+        "decoding": "sampling",
+        "text_preview": "In this paper, we propose a novel approach for segmenting kidneys in ultrasound images using a dynamic graph-cuts method with integrated multiple feature maps. Accurate segmentation of kidneys is crucial for diagnosis and treatment of various renal diseases, but it remains a challenging task due to "
+      },
+      {
+        "id": "0e765303-4a58-40eb-a8d5-522672dee00c",
+        "label": 1,
+        "model": "llama-chat",
+        "domain": "abstracts",
+        "attack": "none",
+        "decoding": "greedy",
+        "text_preview": "This paper presents a novel approach for estimating the body schema of a robot using Bayesian inference and tactile information obtained through coordinated random movements. The proposed method leverages the concept of body schema, which refers to the internal representation of the body's position "
+      },
+      {
+        "id": "c7950aa3-ecab-4646-8176-8bbd17c51114",
+        "label": 0,
+        "model": "human",
+        "domain": "abstracts",
+        "attack": "none",
+        "decoding": null,
+        "text_preview": "Supervised training a deep neural network aims to \"teach\" the network to\nmimic human visual perception that is represented by image-and-label pairs in\nthe training data. Superpixelized (SP) images are visually perceivable to\nhumans, but a conventionally trained deep learning model often performs poo"
+      },
+      {
+        "id": "01f4fbd1-adc0-42b1-a50c-4491f15a1afa",
+        "label": 1,
+        "model": "gpt2",
+        "domain": "abstracts",
+        "attack": "none",
+        "decoding": "sampling",
+        "text_preview": "Abstract Fair simulation makes strong predictions on some aspects of the behaviour. However, it often comes down to trial-and-error when it comes time to test these predictions against real conditions: fair simulations are therefore challenging in terms of practical implementation problems. Here we "
+      },
+      {
+        "id": "41068901-131a-4900-b7f6-ad2b91804c3b",
+        "label": 1,
+        "model": "gpt2",
+        "domain": "abstracts",
+        "attack": "none",
+        "decoding": "sampling",
+        "text_preview": "In this work, we discuss different aspects of all-Switching strategy improvement (ASSO) and compare it to other approaches in optimizing switches. We derive an optimal policy using a Bayesian network approach and provide a comparison between ASSO and other methods including randomized search and dec"
+      },
+      {
+        "id": "5726c0bf-1ba3-4913-97b1-0682d575d4f5",
+        "label": 1,
+        "model": "mpt",
+        "domain": "abstracts",
+        "attack": "none",
+        "decoding": "greedy",
+        "text_preview": "Let $s_0$ be the smallest cardinal such that there exists a set $A$ of reals such that $A$ is not measurable and $A$ is the union of $s_0$ many measurable sets. We show that $s_0$ is a singular cardinal.\n\nI am not sure what the author means by \"Note on $s_0$ nonmeasurable unions\". I am not sure what"
+      },
+      {
+        "id": "7d88f836-98fd-4ed6-8faf-dd7de5ba3bc4",
+        "label": 1,
+        "model": "llama-chat",
+        "domain": "abstracts",
+        "attack": "none",
+        "decoding": "greedy",
+        "text_preview": "In this paper, we propose a novel approach to semantic image segmentation that incorporates boundary detection to improve accuracy and efficiency. Existing segmentation methods often struggle with accurately identifying object boundaries, leading to reduced performance in real-world scenarios. Our a"
+      },
+      {
+        "id": "ab5cffd5-5114-4613-b89d-a8ae41278507",
+        "label": 1,
+        "model": "llama-chat",
+        "domain": "abstracts",
+        "attack": "none",
+        "decoding": "greedy",
+        "text_preview": "In this paper, we propose a novel approach for medical image segmentation using a two-layer ensemble of deep learning models. The first layer consists of multiple instance segmentation models, each trained on a different subset of the data, while the second layer combines the outputs of these models"
+      },
+      {
+        "id": "93f8211f-bbd1-4a39-bd13-b769a0bf4f58",
+        "label": 1,
+        "model": "mpt",
+        "domain": "abstracts",
+        "attack": "none",
+        "decoding": "sampling",
+        "text_preview": "In this essay we survey some notions on algebraic semantics, which have been developed in recent years to find solutions (elementary or axiomatic) within categories instead directly solving equations over suitable free algebras; then these ideas are extended via topological-logical description langu"
+      },
+      {
+        "id": "003b3eec-eef2-47c3-9ded-60aac0451707",
+        "label": 1,
+        "model": "llama-chat",
+        "domain": "abstracts",
+        "attack": "none",
+        "decoding": "greedy",
+        "text_preview": "In this paper, we propose a novel approach to image segmentation using regional active contours based on variational level sets and machine learning. Our method combines the flexibility of active contours with the power of machine learning to accurately segment images with complex structures.\n\nWe be"
+      }
+    ]
+  }
+}
