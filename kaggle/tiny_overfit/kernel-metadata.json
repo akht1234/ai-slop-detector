@@ -1,0 +1,16 @@
+{
+  "id": "akshatmanas/ai-slop-raid-tiny-overfit-test",
+  "title": "AI Slop RAID Tiny Overfit Test",
+  "code_file": "tiny_overfit.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "akshatmanas/ai-slop-raid-pilot-joined-v1"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

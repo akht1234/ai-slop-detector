@@ -108,6 +108,23 @@ class RAIDManifestTests(unittest.TestCase):
         self.assertEqual({record.label for record in records if record.model == "human"}, {0})
         self.assertEqual({record.label for record in records if record.model != "human"}, {1})
 
+    def test_conflicting_exact_texts_are_quarantined(self):
+        rows = example_rows() + [
+            {
+                "id": "conflict-human",
+                "source_id": "source-7",
+                "adv_source_id": "source-7",
+                "model": "human",
+                "generation": "AI generation three",
+            }
+        ]
+        records, stats = records_from_rows(rows)
+
+        self.assertEqual(stats["conflicting_texts_removed"], 1)
+        self.assertEqual(stats["conflicting_rows_removed"], 2)
+        self.assertNotIn("ai-3", {record.record_id for record in records})
+        self.assertNotIn("conflict-human", {record.record_id for record in records})
+
     def test_lineage_records_share_a_group(self):
         records, _ = records_from_rows(example_rows())
         assign_group_ids(records)

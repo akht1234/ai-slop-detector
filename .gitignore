@@ -65,3 +65,6 @@ models/*.safetensors
 kaggle.json
 .kaggle/
 .config/kaggle/
+
+#Misc
+artifacts/

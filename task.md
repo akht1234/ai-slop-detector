@@ -28,6 +28,13 @@ part of the training process.
 - Local Kaggle CLI authentication.
 - Kaggle RAID audit kernel and first downloaded audit report.
 - Standard-library RAID manifest builder with unit tests.
+- Kaggle streaming manifest job with compact compressed assignments.
+- Conflicting exact-text labels are quarantined and counted during manifesting.
+- Large manifest output is sharded into bounded compressed files with an index.
+- Full RAID scan completed: 5,615,820 rows scanned and 4,975,573 retained.
+- Group-disjoint train/validation/test assignments and leakage checks verified.
+- All 96 local assignment shards passed gzip and row-count integrity checks.
+- Published private Kaggle Dataset: `akshatmanas/ai-slop-raid-manifest-v1`.
 
 ### Current artifacts
 
@@ -35,6 +42,26 @@ part of the training process.
 - models/xgb_baseline.json
 - data/raid_train_sample.csv — local labeled sample, ignored by Git.
 - data/raid_sample.csv — local unlabeled inspection sample, ignored by Git.
+- artifacts/raid_manifest_kaggle_v3/ — verified local copy of the published manifest.
+- artifacts/raid_pilot_train_10k/ — verified 1:1 pilot assignments and IDs.
+- artifacts/raid_pilot_join_kaggle_v1/ — log from the first failed join attempt.
+- artifacts/raid_pilot_join_kaggle_v2/ — verified 10,000-row text/metadata join.
+- artifacts/raid_tokenizer_kaggle_v1/ — failed audit log: input dataset was not
+  mounted before the kernel started.
+- artifacts/raid_tokenizer_kaggle_v2/ — failed audit log: Kaggle-normalized
+  plain JSONL was incorrectly opened as gzip.
+- artifacts/raid_tokenizer_kaggle_v3/ — failed audit log: file discovery fix
+  found the normalized file and exposed the compression mismatch.
+- artifacts/raid_tokenizer_kaggle_v4/ — successful RoBERTa tokenizer report
+  and detailed execution log.
+- artifacts/tiny_overfit_kaggle_v1/ — failed full-RoBERTa GPU attempt; Kaggle's
+  PyTorch build did not support the assigned P100 architecture.
+- artifacts/tiny_overfit_kaggle_v3_partial/ — diagnostic tiny checkpoint that
+  correctly failed the overfit gate because its logits stayed at chance.
+- artifacts/tiny_overfit_kaggle_v4/ — scratch RoBERTa-shaped diagnostic with a
+  pretrained-model learning rate; correctly failed the gate.
+- artifacts/tiny_overfit_kaggle_v5/ — successful tiny overfit report, log, and
+  checkpoint.
 
 ### Limitations of the local samples
 
@@ -49,8 +76,6 @@ it is not a representative final training set:
 
 ### Not yet implemented
 
-- Full RAID training data contract implementation.
-- Grouped train/validation split.
 - Transformer classifier.
 - Fine-tuning script.
 - LoRA/PEFT training.
@@ -299,7 +324,9 @@ This is stronger than choosing only one ID as the group key. After splitting,
 we must explicitly verify that neither `source_id` nor `adv_source_id` overlaps
 between partitions.
 
-All token chunks and attack variants from one group must stay together.
+For the primary train/validation/test partitions, all token chunks and attack
+variants from one group must stay together. A pilot may sample records from a
+group only after that group has already been assigned wholly to `train`.
 
 ### Initial split
 
@@ -312,13 +339,20 @@ Held-out test: 10%
 The exact ratios may change after the audit, but the grouping rule must remain.
 
 The first pilot should contain approximately 10,000 examples with roughly equal
-class counts, for example 5,000 human and 5,000 AI. The audit sample was
-approximately 8% human and 92% AI, so it should not be used as the only
-training distribution for the first experiment.
+class counts, for example 5,000 human and 5,000 AI. The full manifest is
+naturally AI-heavy because RAID creates many generations and attack variants
+from each human source; this is a property of the benchmark, not a missing
+download.
 
-Balancing is performed by selecting groups while targeting class counts; rows
-must not be sampled independently if that would split a group. We will later
-evaluate both on this balanced pilot and on a naturally distributed test set.
+The original train/validation/test assignment is group-safe and must never be
+changed. For a small pilot, we may sample records inside groups that already
+belong to the training partition. This does not create train/validation/test
+leakage because no selected record comes from a validation or test group. The
+pilot selector must record selected groups and verify that every selected group
+has `split=train`.
+
+We will compare a balanced pilot with later controlled-ratio and weighted-loss
+experiments. Validation and test distributions remain untouched for reporting.
 
 ### Evaluation partitions
 
@@ -341,6 +375,8 @@ families instead of merely recognizing one model's writing style.
 - No source_id overlap between splits.
 - No adv_source_id overlap between splits.
 - No exact-text duplicates across splits.
+- Exact text with contradictory provenance labels is excluded from supervised
+  manifests and recorded in preprocessing statistics.
 - PMI vocabulary is fitted on training data only.
 - Any normalization statistics are fitted on training data only.
 
@@ -509,17 +545,18 @@ This test verifies the pipeline; it does not measure generalization.
 
 ## 10. Phase 4H: First real fine-tuning experiment
 
-Use a balanced and grouped subset after the audit.
+Use the balanced pilot only after tokenization and the tiny overfit test pass.
+The pilot is a pipeline checkpoint, not the final training distribution.
 
 ### Initial experiment
 
 ~~~text
-Data:              approximately 10,000 examples
-Classes:           approximately balanced
+Data:              approximately 10,000 training examples
+Classes:           approximately balanced (1:1 pilot)
 Sequence length:  512 tokens
 Model:             selected encoder baseline
 Epochs:            1–2
-Evaluation:        grouped validation split
+Evaluation:        fixed validation subset, then full validation split
 Checkpointing:     save best validation checkpoint
 Precision:         use mixed precision after correctness is verified
 ~~~
@@ -641,7 +678,29 @@ The comparison must answer:
 
 ---
 
-## 13. Phase 4K: Scaling experiments
+## 13. Phase 4K: Class-imbalance and scaling experiments
+
+RAID's human/AI row ratio is structural. We will not solve it by duplicating
+human text as the default. The first comparison will isolate one variable at a
+time:
+
+| Experiment | Training data | Class handling | Purpose |
+|---|---:|---|---|
+| Pilot | ~10,000 rows | 1:1 sampled records from train groups | Verify the pipeline |
+| Ratio baseline | All human plus AI near 2:1 | AI downsampling | Preserve more AI diversity while reducing skew |
+| Weighted baseline | Broader AI sample or all train rows | Class-weighted or focal loss | Test whether more AI diversity helps |
+| External-human ablation | RAID plus documented human corpus | Controlled source mixing | Test whether broader human writing helps |
+
+For every experiment, validation and test partitions remain fixed. We will
+report human false-positive rate, AI recall, PR-AUC, ROC-AUC, and per-domain,
+per-generator, and per-attack results. Accuracy alone is insufficient.
+
+External human data is postponed until RAID-only baselines are complete. If it
+is added, we must record its license, domains, source groups, and mixing ratio,
+and treat it as a separate ablation rather than silently changing the main
+dataset.
+
+### Scaling progression
 
 Scale only after the small pilot is correct.
 
@@ -812,19 +871,14 @@ Phase 4 is complete only when:
 
 ## 18. Immediate next tasks
 
-The audit and classification decision are now complete. The next
-implementation sequence is:
+The audit, binary classification decision, full manifest, leakage checks, Kaggle
+publication, pilot selection, and text join are complete. The next implementation sequence is:
 
-1. Implement a local manifest builder for the verified RAID schema.
-2. Convert `model` into the binary human/AI label and validate the rule.
-3. Remove empty records and exact duplicate texts deterministically.
-4. Build leakage groups using connected `source_id`/`adv_source_id` relationships.
-5. Create grouped 80/10/10 train, validation, and held-out test manifests.
-6. Select an approximately balanced 10,000-example pilot without breaking groups.
-7. Verify split invariants and save class/model/attack/domain distributions.
-8. Submit the manifest audit to Kaggle and inspect the downloaded report.
-9. Implement tokenizer loading and the 32–100-example tiny overfit test.
-10. Only after the tiny test succeeds, create the first Transformer fine-tuning job.
+1. Implement tokenizer loading and explain the tokenization contract.
+2. Run the 32–100-example tiny overfit test.
+3. Train the first Transformer baseline on the pilot.
+4. Compare AI downsampling against weighted/focal-loss training.
+5. Scale to the full training partition and evaluate robustness.
 
 ### Current concrete task
 
@@ -842,6 +896,201 @@ fields plus:
 The builder is deterministic given a random seed and fails loudly when split
 leakage checks fail. It does not tokenize or train a model.
 
-The next step is to run this logic against a real RAID CSV slice, then add a
-Kaggle streaming adapter so the same manifest logic can operate on the full
-labeled RAID training split without requiring a local 16 GB download.
+The local logic is covered by unit tests. The pilot selector is implemented in
+`src/data/raid_pilot.py`, with tests in `tests/test_raid_pilot.py`. It selected
+exactly 5,000 human and 5,000 AI records across all generator, domain, and
+attack categories; validation/test group overlap checks both returned zero.
+
+A separate Kaggle job streams the
+full labeled RAID split, uses temporary SQLite storage for bounded memory, and
+writes reusable sharded compressed assignments plus an index, summary, and
+configuration artifacts. The sharded output was downloaded and verified
+locally, then published privately as `akshatmanas/ai-slop-raid-manifest-v1`.
+
+### Research-informed execution plan
+
+The RAID benchmark creates many AI variants from each human source, so a
+row-level 1:1 pilot cannot be obtained by selecting complete groups. The first
+whole-group attempt produced 10,149 rows but only 305 human rows. This output is
+not a valid balanced pilot and must not be used for training.
+
+The corrected rule is:
+
+- Groups are never moved between train, validation, and test.
+- The pilot selects records only from groups already assigned to `train`.
+- A selected group may contribute a subset of its training records.
+- The pilot targets approximately 5,000 human and 5,000 AI records.
+- AI records are sampled across models, domains, attacks, decoding settings,
+  and text lengths where possible.
+- The pilot contains IDs and metadata; the original RAID text is joined later.
+
+#### Stage 1 — Pilot selection — complete
+
+- Implement and test the record-level selector.
+- Produce selected IDs, selected assignment rows, and a summary report.
+- Verify label counts, coverage, and zero overlap with validation/test groups.
+
+**Gate passed:** the pilot contains exactly 5,000 human and 5,000 AI records;
+all selected records belong to `train`; and validation/test group overlap is
+zero.
+
+#### Stage 2 — Text join and data contract — complete
+
+- Submit a Kaggle job that streams the official RAID source.
+- Keep only selected IDs and verify each appears exactly once.
+- Preserve punctuation, capitalization, Unicode, whitespace, and attack
+  artifacts.
+- Save a small joined pilot artifact and row-count report.
+
+**Status:** corrected Kaggle kernel version 2 completed as
+`akshatmanas/ai-slop-raid-pilot-text-join`.
+
+The output contains exactly 10,000 joined records: 5,000 human and 5,000 AI.
+Every pilot ID was found exactly once; no text was empty; and model, domain,
+attack, decoding, repetition-penalty, label, and text-hash checks passed.
+
+**Gate passed:** text, labels, IDs, and metadata match the manifest.
+
+#### Stage 3 — Tokenization and tiny overfit
+
+- [x] Choose and record the first encoder and tokenizer:
+  `FacebookAI/roberta-base` with its matching `RobertaTokenizer`.
+- [x] Inspect token IDs, attention masks, padding, and truncation manually on
+  the 10,000-row pilot.
+- [x] Train on a fixed 32–100-example subset until it nearly memorizes it.
+- [x] Inspect loss, logits, gradients, and trainable parameter counts.
+
+**Gate:** if the tiny model cannot overfit, stop and debug before scaling.
+
+**Tiny overfit result:** a fixed 64-record subset (32 human and 32 AI) was
+trained with seed 42. The 3.33M-parameter scratch RoBERTa-shaped model reached
+100% training accuracy by epoch 5 and finished at 100%; loss decreased from
+0.699175 to 0.001317, gradient norms were nonzero and decreased, and the
+checkpoint plus tokenizer files were saved. The test ran on CPU because the
+assigned Tesla P100 was `sm_60` while Kaggle's PyTorch 2.10 build supports
+`sm_70+`. This passes the pipeline gate but says nothing about generalization.
+
+**Tokenizer audit result:** all 10,000 records were tokenized successfully;
+there were 5,000 human and 5,000 AI records, 10,000 unique IDs, and zero empty
+texts. With a 512-token input limit, 3,385 records (33.85%) exceeded the
+limit. Overall token length was median 399, p90 1,941, and maximum 30,242.
+The audit log records progress at every 1,000 rows and the report is saved in
+`artifacts/raid_tokenizer_kaggle_v4/`. This is a preprocessing result, not a
+model-quality result.
+
+#### Stage 4 — First Transformer baseline
+
+- Train on the balanced pilot with a fixed sequence length.
+- Use a fixed validation subset for fast iteration.
+- Save the checkpoint, tokenizer, configuration, seed, commit ID, and metrics.
+- Compare with XGBoost on the same held-out records.
+
+**Gate:** the run is reproducible and the checkpoint loads for local inference.
+
+#### Stage 5 — Imbalance experiments
+
+- Compare a 1:1 pilot against an AI-to-human ratio near 2:1.
+- Compare AI downsampling with class-weighted or focal loss.
+- Do not duplicate human rows as the default.
+- Keep validation/test data fixed and naturally distributed.
+- Select the strategy using false-positive rate, human recall, AI recall,
+  PR-AUC, ROC-AUC, and slice results.
+
+#### Stage 6 — Scaling and robustness
+
+- Scale to 50k, 100k, and eventually the full training partition.
+- Keep the split and evaluation protocol unchanged.
+- Report clean, adversarial, domain, generator, decoding, and length slices.
+- Select the operating threshold on validation data at a documented FPR target.
+- Evaluate the final threshold once on held-out test data.
+
+#### Stage 7 — LoRA and integration
+
+- Evaluate LoRA only after the full-fine-tuning baseline is understood.
+- Compare accuracy, false positives, training time, memory, artifact size, and
+  latency.
+- Download the selected checkpoint and tokenizer.
+- Add local Transformer inference.
+- Integrate the Transformer with XGBoost only after both paths work alone.
+
+### Current next action
+
+Tokenizer validation code is implemented in
+`src/training/tokenizer_validation.py`. It loads the matching RoBERTa
+tokenizer, checks fixed-length `input_ids`, `attention_mask`, and special-token
+masks, measures original token lengths and truncation, and records label and
+metadata counts. It also logs configuration, progress, failures, and final
+counts so every run is auditable. The local environment does not currently
+have `transformers` or `torch`, so the real tokenizer run remains a Kaggle
+job; the standard-library validation helpers have unit tests.
+
+The remote validator has completed as kernel version 4. We reviewed the
+truncation rate and confirmed the matching tokenizer works. The tiny overfit
+gate has now also passed in kernel version 5. The next action is the first real
+fine-tuning run using pretrained `FacebookAI/roberta-base` on the 10,000-row
+pilot with a fixed 512-token configuration and validation metrics. Because
+33.85% of the pilot is longer than 512 tokens, long-text handling will be an
+explicit follow-up experiment rather than an unrecorded preprocessing
+decision.
+
+The tiny overfit Kaggle job is prepared in `kaggle/tiny_overfit/`. It uses a
+fixed, shuffled 64-record subset (32 human and 32 AI), logs loss, training
+accuracy, logits, gradient norms, and parameter counts, and saves a checkpoint
+plus JSON report. The gate is training accuracy at least 95%; this result must
+not be interpreted as validation performance.
+
+Tiny-overfit version 1 loaded the 124.6M-parameter RoBERTa model but could not
+run its first forward pass because Kaggle assigned a Tesla P100 (`sm_60`) and
+the installed PyTorch 2.10 build supports only `sm_70` and newer. Version 2
+detects this capability mismatch, falls back to CPU, and uses a 128-token
+window for this wiring-only test; the real baseline remains planned at 512
+tokens. The version-2 CPU fallback is too slow in practice. Version 3 used
+`sshleifer/tiny-distilroberta-base`, but its logits stayed near zero and its
+loss stayed at chance, so the overfit gate correctly remained false. Version 4
+uses a small randomly initialized RoBERTa-shaped configuration with the real
+RoBERTa tokenizer, while recording `FacebookAI/roberta-base` as the intended
+pretrained baseline. This is still a wiring test, not a quality experiment.
+
+Tiny-overfit version 4 completed all forward/backward/checkpoint operations,
+but its scratch model stayed near chance because the pretrained-model learning
+rate (`5e-5`) was too small for random initialization. The gate therefore
+remained false for the correct reason. Version 5 uses a diagnostic-only
+learning rate of `1e-3` for the scratch model; the eventual pretrained
+fine-tuning rate will be selected separately.
+
+The first join attempt failed because Kaggle normalized the mounted pilot path
+and assignment filename; version 2 searches the complete input tree and
+supports the normalized `.csv` file. Tokenizer audit versions 1–3 are retained
+as diagnostic logs, and version 4 is the successful run.
+
+The tokenizer implementation and Kaggle wrapper are ready, but publication of
+the joined pilot was attempted and rejected by the Kaggle API with `401
+Unauthorized` during blob upload. An authenticated `kernels list --mine`
+check also returned `401`, confirming this is an invalid/revoked credential,
+not a dataset-specific permission problem. The refreshed project file was
+installed at `~/.config/kaggle/kaggle.json` with mode `600`, but Kaggle still
+rejects it. No remote tokenizer result exists yet; generate a new API token
+from the correct Kaggle account and replace both copies before retrying. The
+failed upload did not modify the repository.
+
+Tokenizer kernel version 1 was submitted immediately after dataset creation
+and failed because Kaggle had not finished mounting the newly-created joined
+dataset; its log records `FileNotFoundError` for the joined JSONL file. The
+dataset is now `ready`, the kernel metadata slug is corrected, and version 2
+will be submitted after this readiness check.
+
+Version 2 showed the same error because Kaggle's dataset upload normalized the
+`.jsonl.gz` file into a directory and retained the temporary gzip header name
+(`.raid_pilot_joined.jsonl.gz.tmp`). The tokenizer wrapper now accepts the
+original, normalized, and decompressed names before version 3 is submitted.
+
+Version 3 found the normalized file and loaded `FacebookAI/roberta-base`, but
+then failed because the normalized file was plain JSONL while its temporary
+name ended in `.gz.tmp`; version 4 detects compression from the file header
+instead of trusting the filename.
+
+### Research references
+
+- [RAID benchmark paper](https://arxiv.org/abs/2405.07940)
+- [GenAI Content Detection Task 3 report](https://aclanthology.org/2025.genaidetect-1.45.pdf)
+- [PyTorch data sampling documentation](https://docs.pytorch.org/docs/stable/data.html)

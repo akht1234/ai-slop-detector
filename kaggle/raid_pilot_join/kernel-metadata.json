@@ -1,0 +1,16 @@
+{
+  "id": "akshatmanas/ai-slop-raid-pilot-text-join",
+  "title": "AI Slop RAID Pilot Text Join",
+  "code_file": "raid_pilot_join.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "akshatmanas/ai-slop-raid-pilot-v1"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

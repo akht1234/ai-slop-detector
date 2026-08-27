@@ -82,9 +82,9 @@ def records_from_rows(rows: Iterable[Mapping[str, object]]) -> Tuple[List[Manife
     """Normalize raw RAID dictionaries and remove exact duplicate texts.
 
     Duplicate records with the same label are reduced deterministically to the
-    record with the lexicographically smallest ID.  Duplicate text with
-    conflicting labels is rejected because silently choosing a label would
-    hide a data-quality problem.
+    record with the lexicographically smallest ID. Every record sharing an
+    exact text hash with both labels is quarantined because the classifier
+    cannot learn two different labels for the same input text.
     """
 
     candidates: List[ManifestRecord] = []
@@ -125,27 +125,31 @@ def records_from_rows(rows: Iterable[Mapping[str, object]]) -> Tuple[List[Manife
     # Sorting makes duplicate selection independent of input order.
     candidates.sort(key=lambda record: record.record_id)
     kept: List[ManifestRecord] = []
-    first_by_hash: Dict[str, ManifestRecord] = {}
+    records_by_hash: Dict[str, List[ManifestRecord]] = defaultdict(list)
     duplicate_texts = 0
+    conflicting_texts = 0
+    conflicting_rows = 0
 
     for record in candidates:
-        previous = first_by_hash.get(record.text_hash)
-        if previous is None:
-            first_by_hash[record.text_hash] = record
-            kept.append(record)
+        records_by_hash[record.text_hash].append(record)
+
+    for same_text_records in records_by_hash.values():
+        labels = {record.label for record in same_text_records}
+        if len(labels) > 1:
+            conflicting_texts += 1
+            conflicting_rows += len(same_text_records)
             continue
 
-        if previous.label != record.label:
-            raise ValueError(
-                "Exact duplicate text has conflicting labels: "
-                f"{previous.record_id}={previous.label}, {record.record_id}={record.label}"
-            )
-        duplicate_texts += 1
+        same_text_records.sort(key=lambda record: record.record_id)
+        kept.append(same_text_records[0])
+        duplicate_texts += len(same_text_records) - 1
 
     stats = {
         "rows_kept": len(kept),
         "empty_rows_removed": skipped_empty,
         "duplicate_texts_removed": duplicate_texts,
+        "conflicting_texts_removed": conflicting_texts,
+        "conflicting_rows_removed": conflicting_rows,
     }
     return kept, stats
 

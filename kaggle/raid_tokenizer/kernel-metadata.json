@@ -1,0 +1,16 @@
+{
+  "id": "akshatmanas/ai-slop-raid-roberta-tokenizer-audit",
+  "title": "AI Slop RAID RoBERTa Tokenizer Audit",
+  "code_file": "raid_tokenizer.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "akshatmanas/ai-slop-raid-pilot-joined-v1"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
